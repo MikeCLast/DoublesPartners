@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Disc Golf Doubles Draw</title>
+<style>
+:root{--bg:#f4f7f2;--card:#fff;--text:#1d2a1f;--muted:#66756a;--accent:#2e7d4f;--line:#dbe4dc;--hl:#fff3c4;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121a14;--card:#1b261e;--text:#eaf2ec;--muted:#93a597;--accent:#4fb87a;--line:#2b3a2f;--hl:#4a4220}}
+:root[data-theme="dark"]{--bg:#121a14;--card:#1b261e;--text:#eaf2ec;--muted:#93a597;--accent:#4fb87a;--line:#2b3a2f;--hl:#4a4220}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column;align-items:center;padding:16px}
+h1{font-size:1.4rem;margin:4px 0}
+#status{color:var(--muted);min-height:1.4em;margin:0 0 8px;text-align:center}
+#wrap{position:relative;width:min(92vw,420px);aspect-ratio:1}
+canvas{width:100%;height:100%;display:block}
+#ptr{position:absolute;left:50%;top:-6px;transform:translateX(-50%);width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-top:28px solid var(--text);z-index:2}
+#winner{position:absolute;inset:0;display:none;align-items:center;justify-content:center;z-index:3;pointer-events:none}
+#winner span{background:var(--accent);color:#fff;font-size:1.8rem;font-weight:800;padding:14px 26px;border-radius:16px;box-shadow:0 6px 24px #0005}
+.row{display:flex;gap:10px;margin:14px 0}
+button{font:inherit;font-weight:700;border:0;border-radius:12px;padding:14px 28px;background:var(--accent);color:#fff;cursor:pointer}
+button.sec{background:var(--card);color:var(--text);border:1px solid var(--line);padding:14px 18px}
+button:disabled{opacity:.5;cursor:default}
+#teams{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:min(92vw,420px)}
+.team{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+.team.active{background:var(--hl)}
+.team h3{margin:0 0 6px;font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.slot{padding:4px 0;font-weight:700;min-height:1.6em}
+.slot.empty{color:var(--muted);font-weight:400}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+</style>
+</head>
+<body>
+<h1>🥏 Doubles Partner Draw</h1>
+<p id="status"></p>
+<div id="wrap"><div id="ptr"></div><canvas id="c"></canvas><div id="winner"><span id="wname"></span></div></div>
+<div class="row"><button id="spin">SPIN</button><button class="sec" id="reset">Reset</button></div>
+<div id="teams"></div>
+<script>
+const NAMES=["Mike L","Mike D","Mike C","Cameron","Kevin","Brandon","Ryan","David"];
+const COLORS=["#e4572e","#2e86ab","#f6b300","#6a994e","#8e5ea2","#17a398","#d1495b","#3d5a80"];
+const cv=document.getElementById("c"),ctx=cv.getContext("2d");
+let left,teams,rot,spinning,size;
+
+function reset(){left=NAMES.map((n,i)=>({n,c:COLORS[i]}));teams=[[],[],[],[]];rot=0;spinning=false;
+ document.getElementById("spin").disabled=false;render();}
+
+function resize(){const r=cv.getBoundingClientRect(),d=window.devicePixelRatio||1;size=r.width;cv.width=r.width*d;cv.height=r.width*d;ctx.setTransform(d,0,0,d,0,0);draw();}
+
+function draw(){
+ ctx.clearRect(0,0,size,size);
+ const n=left.length,R=size/2-4,cx=size/2,seg=2*Math.PI/Math.max(n,1);
+ left.forEach((p,i)=>{
+  const a=rot+i*seg;
+  ctx.beginPath();ctx.moveTo(cx,cx);ctx.arc(cx,cx,R,a,a+seg);ctx.closePath();
+  ctx.fillStyle=p.c;ctx.fill();ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.stroke();
+  ctx.save();ctx.translate(cx,cx);ctx.rotate(a+seg/2);ctx.textAlign="right";ctx.textBaseline="middle";
+  ctx.fillStyle="#fff";ctx.font="700 "+Math.round(size/20)+"px system-ui,sans-serif";
+  ctx.fillText(p.n,R-14,0);ctx.restore();
+ });
+ ctx.beginPath();ctx.arc(cx,cx,size/16,0,7);ctx.fillStyle="#fff";ctx.fill();
+}
+
+function render(){
+ const placed=teams.flat().length,t=Math.floor(placed/2);
+ document.getElementById("status").textContent=left.length===0?"Teams are set! 🎉":
+  (placed%2===0?"Picking Team "+(t+1)+", player 1":"Picking partner for "+teams[t][0].n);
+ document.getElementById("teams").innerHTML=teams.map((tm,i)=>{
+  const active=left.length&&i===t;
+  const slots=[0,1].map(j=>tm[j]?'<div class="slot"><span class="dot" style="background:'+tm[j].c+'"></span>'+tm[j].n+'</div>':'<div class="slot empty">—</div>').join("");
+  return '<div class="team'+(active?' active':'')+'"><h3>Team '+(i+1)+'</h3>'+slots+'</div>';}).join("");
+ draw();
+}
+
+function place(p){const placed=teams.flat().length;teams[Math.floor(placed/2)].push(p);}
+
+function spin(){
+ if(spinning||!left.length)return;
+ spinning=true;document.getElementById("spin").disabled=true;
+ const n=left.length,seg=2*Math.PI/n,start=rot,
+  total=(6+Math.random()*3)*2*Math.PI+Math.random()*2*Math.PI,dur=5000,t0=performance.now();
+ (function f(now){
+  const k=Math.min((now-t0)/dur,1),e=1-Math.pow(1-k,3.5);
+  rot=start+total*e;draw();
+  if(k<1)return requestAnimationFrame(f);
+  const top=((1.5*Math.PI-rot)%(2*Math.PI)+2*Math.PI)%(2*Math.PI);
+  const idx=Math.floor(top/seg)%n,p=left[idx];
+  document.getElementById("wname").textContent=p.n+"!";
+  document.getElementById("winner").style.display="flex";
+  setTimeout(()=>{
+   document.getElementById("winner").style.display="none";
+   left.splice(idx,1);place(p);
+   if(left.length===1){place(left[0]);left=[];}
+   rot=rot%(2*Math.PI);spinning=false;
+   document.getElementById("spin").disabled=left.length===0;
+   render();
+  },1500);
+ })(t0);
+}
+
+document.getElementById("spin").onclick=spin;
+document.getElementById("reset").onclick=()=>{if(!spinning)reset();};
+window.addEventListener("resize",resize);
+reset();resize();
+</script>
+</body>
+</html>
